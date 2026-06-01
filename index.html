@@ -841,7 +841,7 @@ input[list]{appearance:none;}
 </datalist>
 
 <script>
-// (Comunicación con GAS vía google.script.run — no se necesita URL)
+// (Comunicación con backend Render vía fetch)
 
 /* ── Logos de empresa (desde URLs reales) ── */
 const LOGOS_EMPRESA = {
@@ -913,6 +913,26 @@ const empresasState = {
 /* ── Backend API (Render + MongoDB + Cloudinary) ── */
 const BACKEND_URL = 'https://backend-imagenes-pago.onrender.com';
 
+// Función fetch con timeout y reintentos automáticos
+// Render gratuito tarda hasta 60s en despertar, por eso damos tiempo generoso
+async function fetchConReintentos(url, opts, maxIntentos = 3){
+  for(let intento = 1; intento <= maxIntentos; intento++){
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 70000); // 70s timeout
+      const res = await fetch(url, { ...opts, signal: controller.signal });
+      clearTimeout(timeoutId);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch(e) {
+      console.warn(`Intento ${intento}/${maxIntentos} falló:`, e.message);
+      if(intento === maxIntentos) throw e;
+      // Esperar antes de reintentar (2s, 4s, 6s...)
+      await new Promise(r => setTimeout(r, 2000 * intento));
+    }
+  }
+}
+
 async function gasCall(payload){
   try {
     const action = payload.action;
@@ -952,9 +972,7 @@ async function gasCall(payload){
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) opts.body = body;
 
-    const res  = await fetch(url, opts);
-    const data = await res.json();
-    return data;
+    return await fetchConReintentos(url, opts, 3);
   } catch(e) {
     console.error('Backend error:', e.message);
     return { ok: false, error: e.message };
@@ -1642,13 +1660,31 @@ document.getElementById('btnDescargar').addEventListener('click',async function(
 });
 
 /* ── Inicio ── */
+function mostrarLoaderInicial(){
+  const overlay = document.createElement('div');
+  overlay.id = 'loader-inicial';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(8,12,20,0.95);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(8px);';
+  overlay.innerHTML = `
+    <div style="text-align:center;padding:40px;">
+      <div style="width:48px;height:48px;border:3px solid rgba(124,106,247,0.2);border-top-color:#7c6af7;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px;"></div>
+      <p style="color:#e2e8f0;font-size:1rem;font-weight:600;margin-bottom:8px;">Conectando con el servidor...</p>
+      <p style="color:#64748b;font-size:0.8rem;max-width:320px;">La primera carga puede tardar hasta 60 segundos mientras despierta el servidor.</p>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+function ocultarLoaderInicial(){
+  const o = document.getElementById('loader-inicial');
+  if(o){ o.style.opacity='0'; o.style.transition='opacity .4s'; setTimeout(()=>o.remove(), 400); }
+}
+
 (async function init(){
   setEmpresaTab();
   renderBancosChips();
   renderEditor();
   renderInfografia();
+  mostrarLoaderInicial();
 
-  // 1. Cargar estado de empresas y logos desde el servidor
+  // 1. Cargar estado de empresas y logos desde el servidor (con reintentos)
   try {
     await cargarEstadoGlobal();
     await cargarLogos();
@@ -1657,10 +1693,18 @@ document.getElementById('btnDescargar').addEventListener('click',async function(
     renderInfografia();
   } catch(e) {
     console.warn('Error al cargar desde servidor:', e);
+    alert('No se pudo conectar al servidor después de varios intentos.\nLos datos no se sincronizarán hasta que el servidor responda.\nRecarga la página en unos segundos.');
+  } finally {
+    ocultarLoaderInicial();
   }
 
   // 2. Iniciar sincronización automática cada 15 segundos
   setInterval(sincronizarConServidor, 15000);
+
+  // 3. Keep-alive: hacer ping al backend cada 10 minutos para que no se duerma
+  setInterval(() => {
+    fetch(BACKEND_URL + '/', { method: 'GET' }).catch(()=>{});
+  }, 10 * 60 * 1000);
 })();
 </script>
 </body>
