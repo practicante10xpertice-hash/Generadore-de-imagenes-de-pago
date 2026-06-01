@@ -910,28 +910,55 @@ const empresasState = {
   }
 };
 
-/* ── GAS helpers ── */
-// Comunicación directa con Apps Script — sin CORS, sin fetch
-function gasCall(payload){
-  return new Promise((resolve)=>{
+/* ── Backend API (Render + MongoDB + Cloudinary) ── */
+const BACKEND_URL = 'https://backend-imagenes-pago.onrender.com';
+
+async function gasCall(payload){
+  try {
     const action = payload.action;
-    const runner = google.script.run
-      .withSuccessHandler(res => resolve(res || {ok:false}))
-      .withFailureHandler(err => {
-        console.error('GAS error en', action, ':', err);
-        resolve({ok:false, error:err?.message||String(err)});
-      });
+    let method = 'POST';
+    let url    = BACKEND_URL;
+    let body   = null;
 
     switch(action){
-      case 'getLogos':            runner.accionGetLogos(); break;
-      case 'saveLogos':           runner.accionSaveLogos(payload); break;
-      case 'guardarPlantilla':    runner.guardarPlantilla(payload); break;
-      case 'eliminarLogoBanco':   runner.eliminarLogoBanco(payload.key); break;
-      case 'guardarEstado':       runner.guardarEstadoEmpresas(payload); break;
-      case 'cargarEstado':        runner.cargarEstadoEmpresas(); break;
-      default: resolve({ok:false, error:'Acción desconocida: '+action});
+      case 'getLogos':
+        method = 'GET';
+        url    = BACKEND_URL + '/api/logos';
+        break;
+      case 'saveLogos':
+        url  = BACKEND_URL + '/api/logos/guardar';
+        body = JSON.stringify({ bancos: payload.bancos });
+        break;
+      case 'guardarPlantilla':
+        url  = BACKEND_URL + '/api/guardar-plantilla';
+        body = JSON.stringify({ nombre: payload.nombre, base64: payload.base64, mimeType: payload.mimeType });
+        break;
+      case 'eliminarLogoBanco':
+        method = 'DELETE';
+        url    = BACKEND_URL + '/api/logos/' + encodeURIComponent(payload.key);
+        break;
+      case 'guardarEstado':
+        url  = BACKEND_URL + '/api/empresas/guardar';
+        body = JSON.stringify({ estado: payload.estado });
+        break;
+      case 'cargarEstado':
+        method = 'GET';
+        url    = BACKEND_URL + '/api/empresas';
+        break;
+      default:
+        return { ok: false, error: 'Acción desconocida: ' + action };
     }
-  });
+
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = body;
+
+    const res  = await fetch(url, opts);
+    const data = await res.json();
+    return data;
+  } catch(e) {
+    console.error('Backend error:', e.message);
+    return { ok: false, error: e.message };
+  }
 }
 async function cargarLogos(){
   const d = await gasCall({action:'getLogos'});
