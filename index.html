@@ -856,31 +856,31 @@ input[list]{appearance:none;}
 </datalist>
 
 <script>
-// ════════════════════════════════════════════════════════════
-// COMUNICACIÓN CON GAS — via fetch() para deploy en Vercel
-// ════════════════════════════════════════════════════════════
-// ⚠️ IMPORTANTE: Reemplaza esta URL con la URL de tu Web App de Apps Script
-// Para obtenerla: En el editor de Apps Script → Implementar → Nueva implementación
-// → Tipo: Aplicación web → Ejecutar como: Yo → Acceso: Cualquier persona
-// Copia la URL que te da y pégala aquí:
+// ═══════════════════════════════════════════════════════════
+//  GAS helpers — comunicación con Apps Script vía fetch
+//  (reemplaza google.script.run para funcionar desde Vercel)
+// ═══════════════════════════════════════════════════════════
 const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw28ITTnTVwW_t7UpLkIHeAAxcPTdC_aAM1N0HNXO8yWd-SSg9w64SaQX6U_r7yh244/exec';
 
-async function gasCall(payload){
+async function gasCall(payload) {
   try {
-    const resp = await fetch(GAS_WEB_APP_URL, {
+    const response = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
+      // Usamos text/plain para evitar el preflight CORS de Apps Script
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
     });
-    const data = await resp.json();
-    return data || {ok:false};
-  } catch(err) {
-    console.error('GAS error en', payload.action, ':', err);
-    return {ok:false, error: err?.message || String(err)};
+    if (!response.ok) {
+      console.error('GAS HTTP error:', response.status);
+      return { ok: false, error: 'HTTP ' + response.status };
+    }
+    return await response.json();
+  } catch (err) {
+    console.error('GAS fetch error en', payload.action, ':', err);
+    return { ok: false, error: err.message };
   }
 }
 
-}
 async function cargarLogos(){
   const d = await gasCall({action:'getLogos'});
   bancosCustom = (d && d.bancos) ? d.bancos : [];
