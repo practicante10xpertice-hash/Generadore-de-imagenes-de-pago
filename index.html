@@ -973,14 +973,20 @@ function gasCall(payload){
     const mapa = mapaFunciones[action];
     if (!mapa) return Promise.resolve({ok:false, error:'Acción desconocida: '+action});
 
-    const params = new URLSearchParams({
-      funcion: mapa.funcion,
-      datos:   JSON.stringify(mapa.datos)
-    });
-
-    return fetch(GAS_WEBAPP_URL + '?' + params.toString(), {
-      method: 'GET',
-      redirect: 'follow'
+    // ── POST con el cuerpo (NO GET) ──
+    // Los logos van en base64 (~80 KB). Si se mandan en la URL (GET) Google
+    // responde 413 "Content Too Large" y el logo nunca se guarda en Drive.
+    // Enviándolos en el body del POST no hay límite de longitud de URL.
+    // Content-Type 'text/plain' = petición "simple" → NO dispara preflight CORS
+    // (Apps Script no responde a las peticiones OPTIONS de preflight).
+    return fetch(GAS_WEBAPP_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        funcion: mapa.funcion,
+        datos:   mapa.datos
+      })
     })
     .then(r => r.json())
     .catch(err => {
