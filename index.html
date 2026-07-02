@@ -821,7 +821,12 @@ input[list]{appearance:none;}
   font-size:0.5rem;font-weight:700;letter-spacing:2px;
   color:rgba(45,212,191,0.3);text-transform:uppercase;
 }
-.ie-marcas-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.ie-marcas-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
+.ie-marcas-label{
+  font-size:0.5rem;font-weight:700;letter-spacing:2px;
+  color:rgba(45,212,191,0.55);text-transform:uppercase;
+  flex-shrink:0;
+}
 .ie-marca-chip{
   display:flex;align-items:center;gap:6px;
   padding:5px 12px 5px 6px;
@@ -1526,7 +1531,10 @@ function renderInfo(){
     return `
       <div class="ie-grupo">
         <div class="ie-grupo-num">${String(i+1).padStart(2,'0')}</div>
-        <div class="ie-marcas-row">${marcasHTML}</div>
+        <div class="ie-marcas-row">
+          <div class="ie-marcas-label">Marcas Asociadas</div>
+          ${marcasHTML}
+        </div>
         <div class="ie-fields">
           <div class="ie-field full">
             <div class="ie-field-label">Razón Social</div>
