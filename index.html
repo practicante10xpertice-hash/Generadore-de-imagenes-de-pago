@@ -897,16 +897,6 @@ input[list]{appearance:none;}
         </div>
       </div>
 
-      <!-- Logo de la empresa (agregado) -->
-      <div class="editor-section" id="logoEmpresaSection" style="display:none;">
-        <div class="editor-section-title">🖼 Logo de la Empresa</div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <img id="logoEmpresaPreview" style="width:48px;height:48px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid var(--ui-border);">
-          <label class="banco-upload-label" style="flex:1;">📁 Elegir imagen<input type="file" id="logoEmpresaInput" accept="image/*"></label>
-        </div>
-        <button class="btn-add-banco" id="btnCambiarLogoEmpresa" style="width:100%;">Cambiar logo</button>
-      </div>
-
       <!-- Bancos personalizados -->
       <div class="editor-section">
         <div class="editor-section-title">🏦 Bancos / Marcas Personalizadas</div>
@@ -979,18 +969,12 @@ function svgIcon(color, text){
   return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='12' fill='${encodeURIComponent(color)}'/%3E%3Ctext x='50' y='56' font-size='${text.length>3?'22':'28'}' text-anchor='middle' dominant-baseline='middle' fill='white' font-family='Arial Black,Arial' font-weight='900'%3E${text}%3C/text%3E%3C/svg%3E`;
 }
 
-// Bancos/marcas reales (excluye las entradas reservadas "empresa_*" usadas
-// para los logos de cabecera de Égida/Finacorp/La Base)
-function getBancosReales(){
-  return bancosCustom.filter(b => !b.key.startsWith('empresa_'));
-}
-
 function getBankLogo(nombre){
   if(!nombre) return svgIcon('#334155','?');
   const k = nombre.toLowerCase().replace(/\s+/g,'');
 
   // Solo usar logos de Bancos Personalizados
-  const custom = getBancosReales().find(b =>
+  const custom = bancosCustom.find(b =>
     b.key === k ||
     b.nombre.toLowerCase() === nombre.toLowerCase() ||
     k.includes(b.key) ||
@@ -1003,31 +987,28 @@ function getBankLogo(nombre){
   return svgIcon('#475569', initial);
 }
 
-/* ── Logo de cabecera de empresa (Égida/Finacorp/La Base) — agregado ──
-   Prioriza el logo subido desde el panel (guardado en Drive con clave
-   reservada "empresa_<emp>"); si no hay ninguno subido, cae al valor
-   hardcodeado en LOGOS_EMPRESA. */
-function getEmpresaLogo(emp){
-  const custom = bancosCustom.find(b => b.key === 'empresa_' + emp);
-  if(custom) return custom.logo;
-  return LOGOS_EMPRESA[emp] || svgIcon('#475569', '?');
-}
-
-/* ── Logo de marca (para Información Empresarial) — agregado ── */
+/* ── Logo de marca (solo para Información Empresarial) ──
+   Prioriza un logo subido en "Bancos / Marcas Personalizadas" (así puedes
+   subir el logo real de Base, Finacorp, Arxatec, etc. SIN afectar los
+   encabezados de las pestañas Égida/Finacorp/La Base, que siguen usando
+   LOGOS_EMPRESA sin cambios). Si no hay nada subido con ese nombre, cae
+   a los logos por defecto de empresa, y si tampoco hay coincidencia,
+   muestra un avatar con la inicial. */
 function getMarcaLogo(nombre){
   if(!nombre) return svgIcon('#334155','?');
   const k = nombre.toLowerCase().replace(/\s+/g,'');
-  if(k.includes('base'))     return getEmpresaLogo('labase');
-  if(k.includes('finacorp')) return getEmpresaLogo('finacorp');
-  if(k.includes('egida'))    return getEmpresaLogo('egida');
 
-  const custom = getBancosReales().find(b =>
+  const custom = bancosCustom.find(b =>
     b.key === k ||
     b.nombre.toLowerCase() === nombre.toLowerCase() ||
     k.includes(b.key) ||
     b.key.includes(k)
   );
   if(custom) return custom.logo;
+
+  if(k.includes('base'))     return LOGOS_EMPRESA.labase;
+  if(k.includes('finacorp')) return LOGOS_EMPRESA.finacorp;
+  if(k.includes('egida'))    return LOGOS_EMPRESA.egida;
 
   return svgIcon('#2dd4bf', nombre.charAt(0).toUpperCase());
 }
@@ -1260,7 +1241,6 @@ async function sincronizarConServidor(){
         bancosCustom = rL.bancos;
         renderBancosChips();
         renderInfografia();
-        refreshLogoEmpresaSection();
       }
     }
   } catch(e) {}
@@ -1339,7 +1319,7 @@ function removeWhiteBg(imgEl,tol=45){
 ═══════════════════════════════ */
 function renderEgida(){
   const estado = empresasState.egida;
-  const logo   = getEmpresaLogo('egida');
+  const logo   = LOGOS_EMPRESA.egida;
 
   const gridClass = 'eg-cuentas-grid';
 
@@ -1416,7 +1396,7 @@ function renderEgida(){
 ═══════════════════════════════ */
 function renderFinacorp(){
   const estado = empresasState.finacorp;
-  const logo   = getEmpresaLogo('finacorp');
+  const logo   = LOGOS_EMPRESA.finacorp;
 
   const cuentasHTML = estado.cuentas.map(c=>{
     const obs = c.observacion?`<div class="fn-obs">📌 ${escHtml(c.observacion)}</div>`:'';
@@ -1474,7 +1454,7 @@ function renderFinacorp(){
 ═══════════════════════════════ */
 function renderLabase(){
   const estado = empresasState.labase;
-  const logo   = getEmpresaLogo('labase');
+  const logo   = LOGOS_EMPRESA.labase;
 
   const cuentasHTML = estado.cuentas.map((c,i)=>{
     const obs = c.observacion?`<div class="lb-obs">📌 ${escHtml(c.observacion)}</div>`:'';
@@ -1780,26 +1760,13 @@ function setEmpresaTab(){
 document.querySelectorAll('.empresa-tab').forEach(t=>{
   t.addEventListener('click',()=>{
     empresaActual=t.dataset.emp;
-    setEmpresaTab();renderEditor();renderInfografia();refreshLogoEmpresaSection();
+    setEmpresaTab();renderEditor();renderInfografia();
   });
 });
 
-/* ── Logo de cabecera de empresa: uploader (agregado) ──
-   Muestra/oculta la sección según la pestaña activa y refleja el logo actual. */
-function refreshLogoEmpresaSection(){
-  const section = document.getElementById('logoEmpresaSection');
-  if(empresaActual === 'info'){
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = 'block';
-  document.getElementById('logoEmpresaPreview').src = getEmpresaLogo(empresaActual);
-}
-
-/* ── Recorte + escalado de imagen subida (compartido) — agregado ──
-   Extraído del uploader de bancos para reutilizarlo también en el
-   uploader del logo de empresa. Recibe un File y llama a callback(dataUrl). */
-function procesarImagenArchivo(file, callback){
+/* ── Bancos custom ── */
+document.getElementById('bancoLogoInput').addEventListener('change',function(){
+  const f=this.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=e=>{
     const original=new window.Image();
@@ -1871,54 +1838,14 @@ function procesarImagenArchivo(file, callback){
       ctx.clearRect(0, 0, finalW, finalH);
       ctx.drawImage(tmpCanvas, minX, minY, cropW, cropH, 0, 0, finalW, finalH);
 
-      callback(c.toDataURL('image/png'));
+      const dataUrl = c.toDataURL('image/png');
+      const p = document.getElementById('bancoPreview');
+      p.src = dataUrl;
+      p.style.display = 'block';
     };
     original.src = e.target.result;
   };
-  r.readAsDataURL(file);
-}
-
-/* ── Bancos custom ── */
-document.getElementById('bancoLogoInput').addEventListener('change',function(){
-  const f=this.files[0];if(!f)return;
-  procesarImagenArchivo(f, dataUrl=>{
-    const p = document.getElementById('bancoPreview');
-    p.src = dataUrl;
-    p.style.display = 'block';
-  });
-});
-
-/* ── Logo de cabecera de empresa: subida (agregado) ──
-   Reutiliza el mismo pipeline de subida a Drive que "Bancos Personalizados",
-   pero guarda con la clave reservada "empresa_<emp>" para no mezclarse
-   con la lista de bancos/marcas visible abajo. */
-let _logoEmpresaPendiente = null;
-document.getElementById('logoEmpresaInput').addEventListener('change',function(){
-  const f=this.files[0];if(!f)return;
-  procesarImagenArchivo(f, dataUrl=>{
-    _logoEmpresaPendiente = dataUrl;
-    document.getElementById('logoEmpresaPreview').src = dataUrl;
-  });
-});
-
-document.getElementById('btnCambiarLogoEmpresa').addEventListener('click',async function(){
-  if(!_logoEmpresaPendiente){ alert('Selecciona primero una imagen.'); return; }
-  const key = 'empresa_' + empresaActual;
-  const nombre = 'Logo ' + empresaActual;
-  const idx = bancosCustom.findIndex(b=>b.key===key);
-  const entry = {nombre, key, logo:_logoEmpresaPendiente};
-  if(idx>=0) bancosCustom[idx]=entry; else bancosCustom.push(entry);
-
-  this.disabled=true;
-  this.textContent='⏳ Subiendo a Drive...';
-  await guardarLogos(); // sube a Drive y actualiza bancosCustom con la URL pública
-  this.disabled=false;
-  this.textContent='Cambiar logo';
-
-  _logoEmpresaPendiente=null;
-  document.getElementById('logoEmpresaInput').value='';
-  refreshLogoEmpresaSection();
-  renderInfografia();
+  r.readAsDataURL(f);
 });
 
 document.getElementById('btnAddBanco').addEventListener('click',async function(){
@@ -1944,16 +1871,11 @@ document.getElementById('btnAddBanco').addEventListener('click',async function()
 
 function renderBancosChips(){
   const c=document.getElementById('bancosChips');
-  // Excluye las entradas reservadas "empresa_*" (logos de cabecera) de esta lista;
-  // se conserva el índice real en bancosCustom para poder eliminarlas bien.
-  const reales = bancosCustom
-    .map((b,i)=>({...b,_idx:i}))
-    .filter(b=>!b.key.startsWith('empresa_'));
-  c.innerHTML=reales.map(b=>`
+  c.innerHTML=bancosCustom.map((b,i)=>`
     <div class="banco-chip">
       <img src="${b.logo}" alt="${escHtml(b.nombre)}">
       <span>${escHtml(b.nombre)}</span>
-      <button class="chip-del" data-i="${b._idx}" data-key="${escHtml(b.key)}">✕</button>
+      <button class="chip-del" data-i="${i}" data-key="${escHtml(b.key)}">✕</button>
     </div>`).join('');
   c.querySelectorAll('.chip-del').forEach(btn=>{
     btn.addEventListener('click',async()=>{
@@ -2037,7 +1959,6 @@ document.getElementById('btnDescargar').addEventListener('click',async function(
   renderBancosChips();
   renderEditor();
   renderInfografia();
-  refreshLogoEmpresaSection();
 
   // 1. Cargar estado de empresas y logos desde el servidor
   try {
@@ -2046,7 +1967,6 @@ document.getElementById('btnDescargar').addEventListener('click',async function(
     renderEditor();
     renderBancosChips();
     renderInfografia();
-    refreshLogoEmpresaSection();
   } catch(e) {
     console.warn('Error al cargar desde servidor:', e);
   }
